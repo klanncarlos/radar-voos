@@ -1,0 +1,36 @@
+name: Radar de Voos
+
+on:
+  schedule:
+    # 08:00 e 20:00 no horário de Brasília
+    - cron: "0 11,23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+      - name: Executar Radar de Voos
+        env:
+          AMADEUS_CLIENT_ID: ${{ secrets.AMADEUS_CLIENT_ID }}
+          AMADEUS_CLIENT_SECRET: ${{ secrets.AMADEUS_CLIENT_SECRET }}
+          AMADEUS_ENV: ${{ secrets.AMADEUS_ENV }}
+          WHATSAPP_TOKEN: ${{ secrets.WHATSAPP_TOKEN }}
+          WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
+          WHATSAPP_TO: ${{ secrets.WHATSAPP_TO }}
+        run: python3 monitor.py
+
+      - name: Salvar resultados
+        run: |
+          git config user.name "radar-voos-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/state.json data/latest.json docs/latest.json
+          git diff --cached --quiet || git commit -m "Atualiza preços dos voos"
+          git push
