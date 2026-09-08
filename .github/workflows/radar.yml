@@ -18,10 +18,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Executar Radar de Voos
-        env:
-          AMADEUS_CLIENT_ID: ${{ secrets.AMADEUS_CLIENT_ID }}
-          AMADEUS_CLIENT_SECRET: ${{ secrets.AMADEUS_CLIENT_SECRET }}
-          AMADEUS_ENV: ${{ secrets.AMADEUS_ENV }}
+               env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           WHATSAPP_TOKEN: ${{ secrets.WHATSAPP_TOKEN }}
           WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
           WHATSAPP_TO: ${{ secrets.WHATSAPP_TO }}
