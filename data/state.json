@@ -1,23 +1,24 @@
 {
   "_rotation": {
-    "uruguai": 2,
-    "neve": 2
+    "uruguai": 4,
+    "neve": 4
   },
   "uruguai": {
-    "last_price": 1698.0,
-    "lowest_price": 1698.0,
+    "last_price": 1631.0,
+    "lowest_price": 1631.0,
     "last_route": "CWB-MVD",
-    "last_departure": "2026-11-01",
-    "last_return": "2026-11-05",
-    "updated_at": "2026-09-08T01:41:36.469038+00:00"
+    "last_departure": "2026-11-08",
+    "last_return": "2026-11-12",
+    "updated_at": "2026-09-08T01:47:50.321952+00:00",
+    "last_alert_price": 1631.0
   },
   "neve": {
     "last_price": 1778.0,
     "lowest_price": 1778.0,
     "last_route": "CWB-SCL",
-    "last_departure": "2027-07-01",
-    "last_return": "2027-07-06",
-    "updated_at": "2026-09-08T01:41:48.784152+00:00",
+    "last_departure": "2027-07-08",
+    "last_return": "2027-07-13",
+    "updated_at": "2026-09-08T01:48:08.376402+00:00",
     "last_alert_price": 1778.0
   }
 }
