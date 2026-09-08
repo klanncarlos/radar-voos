@@ -12,6 +12,8 @@ LATEST_PATH = ROOT / "data/latest.json"
 DOCS_LATEST_PATH = ROOT / "docs/latest.json"
 
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN", "")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
@@ -47,7 +49,97 @@ def request_json(url, method="GET", headers=None, data=None):
     with urllib.request.urlopen(req, timeout=90) as response:
         return json.loads(response.read().decode("utf-8"))
 
+def carregar_pesquisas_supabase():
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        print("Supabase não configurado. Usando config.json.")
+        return []
 
+    url = (
+        SUPABASE_URL.rstrip("/")
+        + "/rest/v1/pesquisas"
+        + "?ativo=eq.true"
+        + "&select=*"
+        + "&order=id.asc"
+    )
+
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY,
+        "Accept": "application/json"
+    }
+
+    try:
+        pesquisas = request_json(
+            url,
+            headers=headers
+        )
+    except Exception as error:
+        print(
+            "Erro ao consultar pesquisas no Supabase:",
+            error
+        )
+        return []
+
+    monitores = []
+
+    for pesquisa in pesquisas:
+        origem = str(
+            pesquisa.get("origem") or ""
+        ).upper()
+
+        destino = str(
+            pesquisa.get("destino") or ""
+        ).upper()
+
+        origens = [
+            item.strip()
+            for item in origem.split(",")
+            if item.strip()
+        ]
+
+        destinos = [
+            item.strip()
+            for item in destino.split(",")
+            if item.strip()
+        ]
+
+        if not origens or not destinos:
+            continue
+
+        monitores.append({
+            "id": "supabase_" + str(pesquisa["id"]),
+            "name": (
+                f"{', '.join(origens)} → "
+                f"{', '.join(destinos)}"
+            ),
+            "origins": origens,
+            "destinations": destinos,
+            "date_start": pesquisa["data_inicio"],
+            "date_end": pesquisa["data_fim"],
+            "stay_min_days": (
+                pesquisa.get("duracao_minima") or 4
+            ),
+            "stay_max_days": (
+                pesquisa.get("duracao_maxima") or 8
+            ),
+            "target_price": (
+                float(pesquisa["preco_maximo"])
+                if pesquisa.get("preco_maximo")
+                is not None
+                else 0
+            ),
+            "drop_percent": 12,
+            "travel_class": "ECONOMY",
+            "adults": 1,
+            "non_stop": False
+        })
+
+    print(
+        f"Supabase: {len(monitores)} "
+        "pesquisa(s) ativa(s) carregada(s)."
+    )
+
+    return monitores
 def travel_class_code(value):
     mapping = {
         "ECONOMY": "1",
@@ -342,8 +434,10 @@ def main():
 
     all_results = []
     alerts_sent = 0
-
-    for monitor in CONFIG.get("monitors", []):
+monitors = carregar_pesquisas_supabase()
+if not monitors:
+    monitors = CONFIG.get("monitors", [])
+for monitor in monitors:
         monitor_results = []
 
         pairs = choose_pairs(monitor)
