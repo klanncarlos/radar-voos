@@ -36,18 +36,19 @@ def request_json(url, method="GET", headers=None, data=None):
         body = json.dumps(data).encode("utf-8")
         headers = {
             **(headers or {}),
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
     req = urllib.request.Request(
         url,
         data=body,
         method=method,
-        headers=headers or {}
+        headers=headers or {},
     )
 
     with urllib.request.urlopen(req, timeout=90) as response:
         return json.loads(response.read().decode("utf-8"))
+
 
 def carregar_pesquisas_supabase():
     if not SUPABASE_URL or not SUPABASE_KEY:
@@ -65,87 +66,60 @@ def carregar_pesquisas_supabase():
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": "Bearer " + SUPABASE_KEY,
-        "Accept": "application/json"
+        "Accept": "application/json",
     }
 
     try:
-        pesquisas = request_json(
-            url,
-            headers=headers
-        )
+        pesquisas = request_json(url, headers=headers)
     except Exception as error:
-        print(
-            "Erro ao consultar pesquisas no Supabase:",
-            error
-        )
+        print("Erro ao consultar pesquisas no Supabase:", error)
         return []
 
     monitores = []
 
     for pesquisa in pesquisas:
-        origem = str(
-            pesquisa.get("origem") or ""
-        ).upper()
+        origem = str(pesquisa.get("origem") or "").upper()
+        destino = str(pesquisa.get("destino") or "").upper()
 
-        destino = str(
-            pesquisa.get("destino") or ""
-        ).upper()
-
-        origens = [
-            item.strip()
-            for item in origem.split(",")
-            if item.strip()
-        ]
-
-        destinos = [
-            item.strip()
-            for item in destino.split(",")
-            if item.strip()
-        ]
+        origens = [item.strip() for item in origem.split(",") if item.strip()]
+        destinos = [item.strip() for item in destino.split(",") if item.strip()]
 
         if not origens or not destinos:
             continue
 
+        if not pesquisa.get("data_inicio") or not pesquisa.get("data_fim"):
+            continue
+
         monitores.append({
             "id": "supabase_" + str(pesquisa["id"]),
-            "name": (
-                f"{', '.join(origens)} → "
-                f"{', '.join(destinos)}"
-            ),
+            "name": f"{', '.join(origens)} → {', '.join(destinos)}",
             "origins": origens,
             "destinations": destinos,
             "date_start": pesquisa["data_inicio"],
             "date_end": pesquisa["data_fim"],
-            "stay_min_days": (
-                pesquisa.get("duracao_minima") or 4
-            ),
-            "stay_max_days": (
-                pesquisa.get("duracao_maxima") or 8
-            ),
+            "stay_min_days": pesquisa.get("duracao_minima") or 4,
+            "stay_max_days": pesquisa.get("duracao_maxima") or 8,
             "target_price": (
                 float(pesquisa["preco_maximo"])
-                if pesquisa.get("preco_maximo")
-                is not None
+                if pesquisa.get("preco_maximo") is not None
                 else 0
             ),
             "drop_percent": 12,
             "travel_class": "ECONOMY",
             "adults": 1,
-            "non_stop": False
+            "non_stop": False,
         })
 
-    print(
-        f"Supabase: {len(monitores)} "
-        "pesquisa(s) ativa(s) carregada(s)."
-    )
-
+    print(f"Supabase: {len(monitores)} pesquisa(s) ativa(s) carregada(s).")
     return monitores
+
+
 def travel_class_code(value):
     mapping = {
         "ECONOMY": "1",
         "PREMIUM_ECONOMY": "2",
         "BUSINESS": "3",
-        "FIRST": "4"
+        "FIRST": "4",
     }
     return mapping.get(str(value or "ECONOMY").upper(), "1")
 
@@ -160,20 +134,19 @@ def date_pairs(monitor):
     if end <= start:
         return []
 
-    # Cria amostras de datas distribuídas pela janela.
     total_days = (end - start).days
 
     offsets = sorted(set([
         0,
         total_days // 4,
         total_days // 2,
-        (total_days * 3) // 4
+        (total_days * 3) // 4,
     ]))
 
     stays = sorted(set([
         min_days,
         (min_days + max_days) // 2,
-        max_days
+        max_days,
     ]))
 
     pairs = []
@@ -183,12 +156,8 @@ def date_pairs(monitor):
 
         for stay in stays:
             return_date = outbound + timedelta(days=stay)
-
             if return_date <= end:
-                pairs.append((
-                    outbound.isoformat(),
-                    return_date.isoformat()
-                ))
+                pairs.append((outbound.isoformat(), return_date.isoformat()))
 
     return pairs
 
@@ -200,18 +169,11 @@ def choose_pairs(monitor):
         return []
 
     monitor_id = monitor["id"]
-
-    position = int(
-        STATE["_rotation"].get(monitor_id, 0)
-    )
-
-    # Duas combinações por monitor em cada execução.
+    position = int(STATE["_rotation"].get(monitor_id, 0))
     selected = []
 
     for i in range(min(2, len(pairs))):
-        selected.append(
-            pairs[(position + i) % len(pairs)]
-        )
+        selected.append(pairs[(position + i) % len(pairs)])
 
     STATE["_rotation"][monitor_id] = (
         position + len(selected)
@@ -229,23 +191,18 @@ def search_flights(monitor, outbound, return_date):
         "outbound_date": outbound,
         "return_date": return_date,
         "type": "1",
-        "travel_class": travel_class_code(
-            monitor.get("travel_class")
-        ),
+        "travel_class": travel_class_code(monitor.get("travel_class")),
         "adults": str(monitor.get("adults", 1)),
         "currency": CONFIG.get("currency", "BRL"),
         "gl": "br",
         "hl": "pt-br",
-        "sort_by": "2"
+        "sort_by": "2",
     }
 
     if monitor.get("non_stop"):
         params["stops"] = "1"
 
-    url = (
-        "https://serpapi.com/search.json?"
-        + urllib.parse.urlencode(params)
-    )
+    url = "https://serpapi.com/search.json?" + urllib.parse.urlencode(params)
 
     print(
         f'Buscando {monitor["name"]}: '
@@ -260,35 +217,24 @@ def search_flights(monitor, outbound, return_date):
         raise RuntimeError(data["error"])
 
     flights = []
-
-    raw_results = (
-        data.get("best_flights", [])
-        + data.get("other_flights", [])
-    )
+    raw_results = data.get("best_flights", []) + data.get("other_flights", [])
 
     for result in raw_results:
         price = result.get("price")
-
         if price is None:
             continue
 
         legs = result.get("flights", [])
-
         if not legs:
             continue
 
         first = legs[0]
         last = legs[-1]
 
-        departure_airport = first.get(
-            "departure_airport", {}
-        )
-        arrival_airport = last.get(
-            "arrival_airport", {}
-        )
+        departure_airport = first.get("departure_airport", {})
+        arrival_airport = last.get("arrival_airport", {})
 
         airlines = []
-
         for leg in legs:
             airline = leg.get("airline")
             if airline and airline not in airlines:
@@ -297,23 +243,15 @@ def search_flights(monitor, outbound, return_date):
         flights.append({
             "monitor_id": monitor["id"],
             "monitor_name": monitor["name"],
-            "origin": departure_airport.get(
-                "id",
-                ",".join(monitor["origins"])
-            ),
-            "destination": arrival_airport.get(
-                "id",
-                ",".join(monitor["destinations"])
-            ),
+            "origin": departure_airport.get("id", ",".join(monitor["origins"])),
+            "destination": arrival_airport.get("id", ",".join(monitor["destinations"])),
             "departure": outbound,
             "return": return_date,
             "price": float(price),
             "airline": ", ".join(airlines),
-            "duration_minutes": result.get(
-                "total_duration"
-            ),
+            "duration_minutes": result.get("total_duration"),
             "stops": max(len(legs) - 1, 0),
-            "currency": CONFIG.get("currency", "BRL")
+            "currency": CONFIG.get("currency", "BRL"),
         })
 
     return flights
@@ -332,39 +270,21 @@ def format_price(value):
 def should_alert(monitor, best, old):
     reasons = []
 
-    target = float(
-        monitor.get("target_price", 0) or 0
-    )
-
+    target = float(monitor.get("target_price", 0) or 0)
     historical_low = old.get("lowest_price")
     previous = old.get("last_price")
     last_alert = old.get("last_alert_price")
 
     if target and best["price"] <= target:
-        if (
-            last_alert is None
-            or best["price"] < float(last_alert) * 0.98
-        ):
+        if last_alert is None or best["price"] < float(last_alert) * 0.98:
             reasons.append("abaixo do preço-alvo")
 
     if previous:
-        drop = (
-            (float(previous) - best["price"])
-            / float(previous)
-            * 100
-        )
+        drop = ((float(previous) - best["price"]) / float(previous)) * 100
+        if drop >= float(monitor.get("drop_percent", 12)):
+            reasons.append(f"queda de {drop:.0f}% desde a última referência")
 
-        if drop >= float(
-            monitor.get("drop_percent", 12)
-        ):
-            reasons.append(
-                f"queda de {drop:.0f}% desde a última referência"
-            )
-
-    if (
-        historical_low is not None
-        and best["price"] < float(historical_low)
-    ):
+    if historical_low is not None and best["price"] < float(historical_low):
         reasons.append("novo menor preço registrado")
 
     return list(dict.fromkeys(reasons))
@@ -408,19 +328,14 @@ def send_whatsapp(text):
         "messaging_product": "whatsapp",
         "to": WHATSAPP_TO,
         "type": "text",
-        "text": {
-            "body": text
-        }
+        "text": {"body": text},
     }
 
     request_json(
         url,
         method="POST",
-        headers={
-            "Authorization":
-                "Bearer " + WHATSAPP_TOKEN
-        },
-        data=payload
+        headers={"Authorization": "Bearer " + WHATSAPP_TOKEN},
+        data=payload,
     )
 
     return True
@@ -428,18 +343,17 @@ def send_whatsapp(text):
 
 def main():
     if not SERPAPI_KEY:
-        raise RuntimeError(
-            "SERPAPI_KEY não configurada."
-        )
+        raise RuntimeError("SERPAPI_KEY não configurada.")
 
     all_results = []
     alerts_sent = 0
-monitors = carregar_pesquisas_supabase()
-if not monitors:
-    monitors = CONFIG.get("monitors", [])
-for monitor in monitors:
-        monitor_results = []
 
+    monitors = carregar_pesquisas_supabase()
+    if not monitors:
+        monitors = CONFIG.get("monitors", [])
+
+    for monitor in monitors:
+        monitor_results = []
         pairs = choose_pairs(monitor)
 
         for outbound, return_date in pairs:
@@ -447,27 +361,18 @@ for monitor in monitors:
                 results = search_flights(
                     monitor,
                     outbound,
-                    return_date
+                    return_date,
                 )
-
                 monitor_results.extend(results)
                 all_results.extend(results)
-
             except Exception as error:
-                print(
-                    f"Erro na busca {monitor['name']}: {error}"
-                )
+                print(f"Erro na busca {monitor['name']}: {error}")
 
         if not monitor_results:
-            print(
-                f"Nenhum voo encontrado em {monitor['name']}."
-            )
+            print(f"Nenhum voo encontrado em {monitor['name']}.")
             continue
 
-        best = min(
-            monitor_results,
-            key=lambda x: x["price"]
-        )
+        best = min(monitor_results, key=lambda x: x["price"])
 
         print(
             f"MELHOR PREÇO {monitor['name']}: "
@@ -477,46 +382,28 @@ for monitor in monitors:
         )
 
         old = STATE.get(monitor["id"], {})
-
-        reasons = should_alert(
-            monitor,
-            best,
-            old
-        )
-
+        reasons = should_alert(monitor, best, old)
         historical_low = old.get("lowest_price")
 
         if historical_low is None:
             lowest = best["price"]
         else:
-            lowest = min(
-                float(historical_low),
-                best["price"]
-            )
+            lowest = min(float(historical_low), best["price"])
 
         new_state = {
             "last_price": best["price"],
             "lowest_price": lowest,
-            "last_route":
-                f"{best['origin']}-{best['destination']}",
+            "last_route": f"{best['origin']}-{best['destination']}",
             "last_departure": best["departure"],
             "last_return": best["return"],
-            "updated_at":
-                datetime.now(timezone.utc).isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         if old.get("last_alert_price") is not None:
-            new_state["last_alert_price"] = old[
-                "last_alert_price"
-            ]
+            new_state["last_alert_price"] = old["last_alert_price"]
 
         if reasons:
-            message = whatsapp_message(
-                monitor,
-                best,
-                reasons
-            )
-
+            message = whatsapp_message(monitor, best, reasons)
             print("\n" + message + "\n")
 
             if send_whatsapp(message):
@@ -526,42 +413,27 @@ for monitor in monitors:
 
         STATE[monitor["id"]] = new_state
 
-    all_results.sort(
-        key=lambda x: x["price"]
-    )
+    all_results.sort(key=lambda x: x["price"])
 
     latest = {
-        "updated_at":
-            datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
         "results": all_results[:100],
-        "alerts_sent": alerts_sent
+        "alerts_sent": alerts_sent,
     }
 
     STATE_PATH.write_text(
-        json.dumps(
-            STATE,
-            indent=2,
-            ensure_ascii=False
-        ) + "\n",
-        encoding="utf-8"
+        json.dumps(STATE, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
     )
 
     LATEST_PATH.write_text(
-        json.dumps(
-            latest,
-            indent=2,
-            ensure_ascii=False
-        ) + "\n",
-        encoding="utf-8"
+        json.dumps(latest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
     )
 
     DOCS_LATEST_PATH.write_text(
-        json.dumps(
-            latest,
-            indent=2,
-            ensure_ascii=False
-        ) + "\n",
-        encoding="utf-8"
+        json.dumps(latest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
     )
 
     print(
