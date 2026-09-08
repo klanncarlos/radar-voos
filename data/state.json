@@ -1,7 +1,8 @@
 {
   "_rotation": {
     "uruguai": 8,
-    "neve": 8
+    "neve": 8,
+    "supabase_1": 2
   },
   "uruguai": {
     "last_price": 1636.0,
@@ -20,5 +21,14 @@
     "last_return": "2027-07-23",
     "updated_at": "2026-09-08T13:26:47.655101+00:00",
     "last_alert_price": 1778.0
+  },
+  "supabase_1": {
+    "last_price": 1698.0,
+    "lowest_price": 1698.0,
+    "last_route": "CWB-MVD",
+    "last_departure": "2026-11-01",
+    "last_return": "2026-11-05",
+    "updated_at": "2026-09-08T14:36:06.502862+00:00",
+    "last_alert_price": 1698.0
   }
 }
