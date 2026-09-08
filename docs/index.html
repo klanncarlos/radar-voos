@@ -1,0 +1,16 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Radar de Voos</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f5f7fb;color:#15223b;margin:0}
+main{max-width:900px;margin:auto;padding:28px}.hero{background:white;padding:22px;border-radius:18px;box-shadow:0 8px 30px #00000010}
+h1{margin:0 0 6px}.muted{color:#667085}.deal{background:white;margin-top:12px;padding:16px;border-radius:14px;display:flex;justify-content:space-between;gap:16px;box-shadow:0 4px 20px #0000000b}
+.price{font-weight:800;font-size:20px}.small{font-size:13px}.empty{padding:30px;text-align:center}
+</style></head><body><main><div class="hero"><h1>✈ Radar de Voos</h1><div class="muted" id="updated">Carregando...</div></div><div id="deals"></div></main>
+<script>
+const money=(n,c)=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:c||"BRL"}).format(n);
+fetch("./latest.json?"+Date.now()).then(r=>r.json()).then(d=>{
+ document.getElementById("updated").textContent=d.updated_at?"Atualizado em "+new Date(d.updated_at).toLocaleString("pt-BR"):"Ainda sem consultas";
+ const el=document.getElementById("deals"); if(!d.deals?.length){el.innerHTML='<div class="empty">Nenhuma oferta encontrada ainda.</div>';return;}
+ el.innerHTML=d.deals.map(x=>`<div class="deal"><div><b>${x.origin} → ${x.destination}</b><div class="muted small">${x.monitor_name}</div><div class="small">Ida ${x.departure} · volta ${x.return}</div></div><div class="price">${money(x.price,x.currency)}</div></div>`).join("");
+}).catch(()=>document.getElementById("updated").textContent="Não foi possível carregar o radar.");
+</script></body></html>

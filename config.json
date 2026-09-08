@@ -1,0 +1,51 @@
+{
+  "currency": "BRL",
+  "max_queries_per_run": 80,
+  "date_step_days": 2,
+  "monitors": [
+    {
+      "id": "uruguai",
+      "name": "Uruguai barato",
+      "origins": [
+        "CWB",
+        "FLN"
+      ],
+      "destinations": [
+        "MVD",
+        "PDP"
+      ],
+      "date_start": "2026-11-01",
+      "date_end": "2026-11-30",
+      "stay_min_days": 4,
+      "stay_max_days": 8,
+      "adults": 1,
+      "non_stop": false,
+      "travel_class": "ECONOMY",
+      "target_price": 1000,
+      "drop_percent": 12
+    },
+    {
+      "id": "neve",
+      "name": "Neve Argentina e Chile",
+      "origins": [
+        "CWB",
+        "FLN"
+      ],
+      "destinations": [
+        "BRC",
+        "CPC",
+        "SCL",
+        "MDZ"
+      ],
+      "date_start": "2027-07-01",
+      "date_end": "2027-07-31",
+      "stay_min_days": 5,
+      "stay_max_days": 9,
+      "adults": 1,
+      "non_stop": false,
+      "travel_class": "ECONOMY",
+      "target_price": 2200,
+      "drop_percent": 15
+    }
+  ]
+}
