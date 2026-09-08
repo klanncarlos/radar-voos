@@ -278,14 +278,134 @@
   </div>
 
 </div>
-
 <script>
-  function ativarRadar() {
+  const SUPABASE_URL = "https://kphkfcgeujshlntwspvk.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_ghStdIDZVe7yDeECGrJGCQ_g6KMXI8x";
 
-    const origin =
+  let accessToken = sessionStorage.getItem("radar_access_token") || "";
+  let userId = sessionStorage.getItem("radar_user_id") || "";
+
+  function codigoAeroporto(valor) {
+    const texto = (valor || "").trim().toUpperCase();
+
+    const parenteses = texto.match(/\(([A-Z]{3})\)/);
+    if (parenteses) return parenteses[1];
+
+    if (/^[A-Z]{3}$/.test(texto)) return texto;
+
+    return "";
+  }
+
+  async function fazerLogin() {
+    if (accessToken && userId) {
+      return true;
+    }
+
+    const email = prompt("Digite seu e-mail do Radar de Voos:");
+    if (!email) return false;
+
+    const senha = prompt("Digite sua senha do Radar de Voos:");
+    if (!senha) return false;
+
+    const resposta = await fetch(
+      SUPABASE_URL + "/auth/v1/token?grant_type=password",
+      {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: email,
+          password: senha
+        })
+      }
+    );
+
+    const dados = await resposta.json();
+
+    if (!resposta.ok) {
+      alert("Não foi possível entrar. Confira seu e-mail e senha.");
+      return false;
+    }
+
+    accessToken = dados.access_token;
+    userId = dados.user.id;
+
+    sessionStorage.setItem("radar_access_token", accessToken);
+    sessionStorage.setItem("radar_user_id", userId);
+
+    return true;
+  }
+
+  async function carregarAlertas() {
+    if (!await fazerLogin()) return;
+
+    const resposta = await fetch(
+      SUPABASE_URL + "/rest/v1/pesquisas?select=*&order=id.desc",
+      {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + accessToken
+        }
+      }
+    );
+
+    if (!resposta.ok) {
+      return;
+    }
+
+    const alertas = await resposta.json();
+    const area = document.querySelector(".empty");
+
+    if (!alertas.length) {
+      area.innerHTML = "Você ainda não possui nenhum alerta cadastrado.";
+      return;
+    }
+
+    area.innerHTML = alertas.map(alerta => `
+      <div style="
+        text-align:left;
+        padding:16px;
+        margin-bottom:10px;
+        border:1px solid #e5e7eb;
+        border-radius:10px;
+        background:#fff;
+      ">
+        <strong style="font-size:17px;">
+          ${alerta.origem} → ${alerta.destino}
+        </strong>
+
+        <div style="margin-top:7px;">
+          📅 ${alerta.data_inicio} até ${alerta.data_fim}
+        </div>
+
+        <div>
+          ⏱ ${alerta.duracao_minima} a ${alerta.duracao_maxima} dias
+        </div>
+
+        <div>
+          💰 Até R$ ${Number(alerta.preco_maximo).toLocaleString("pt-BR")}
+        </div>
+
+        <div style="
+          margin-top:8px;
+          font-weight:bold;
+          color:${alerta.ativo ? "#12805c" : "#9a6700"};
+        ">
+          ${alerta.ativo ? "● Alerta ativo" : "● Alerta pausado"}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function ativarRadar() {
+    if (!await fazerLogin()) return;
+
+    const origemDigitada =
       document.getElementById("origin").value;
 
-    const destination =
+    const destinoDigitado =
       document.getElementById("destination").value;
 
     const departure =
@@ -294,17 +414,92 @@
     const returnDate =
       document.getElementById("returnDate").value;
 
-    if (!origin || !destination || !departure) {
+    const preco =
+      Number(document.getElementById("targetPrice").value);
+
+    const flex =
+      Number(document.getElementById("flexDays").value || 0);
+
+    const origem = codigoAeroporto(origemDigitada);
+    const destino = codigoAeroporto(destinoDigitado);
+
+    if (!origem || !destino) {
       alert(
-        "Preencha pelo menos origem, destino e data de ida."
+        "Informe origem e destino com o código do aeroporto. Ex.: Curitiba (CWB)."
       );
       return;
     }
 
-    alert(
-      "Radar configurado! Próximo passo: conectar esta tela ao Supabase."
+    if (!departure || !returnDate) {
+      alert("Preencha as datas de ida e volta.");
+      return;
+    }
+
+    if (!preco || preco <= 0) {
+      alert("Informe o preço máximo desejado.");
+      return;
+    }
+
+    const ida = new Date(departure + "T12:00:00");
+    const volta = new Date(returnDate + "T12:00:00");
+
+    const duracao =
+      Math.round((volta - ida) / 86400000);
+
+    if (duracao <= 0) {
+      alert("A data de volta precisa ser posterior à ida.");
+      return;
+    }
+
+    const duracaoMinima =
+      Math.max(1, duracao - flex);
+
+    const duracaoMaxima =
+      duracao + flex;
+
+    const novoAlerta = {
+      origem: origem,
+      destino: destino,
+      data_inicio: departure,
+      data_fim: returnDate,
+      duracao_minima: duracaoMinima,
+      duracao_maxima: duracaoMaxima,
+      preco_maximo: preco,
+      ativo: true,
+      owner_id: userId
+    };
+
+    const resposta = await fetch(
+      SUPABASE_URL + "/rest/v1/pesquisas",
+      {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + accessToken,
+          "Content-Type": "application/json",
+          "Prefer": "return=representation"
+        },
+        body: JSON.stringify(novoAlerta)
+      }
     );
+
+    if (!resposta.ok) {
+      const erro = await resposta.text();
+      console.error(erro);
+
+      alert(
+        "Não foi possível criar o alerta. Vamos conferir a configuração."
+      );
+
+      return;
+    }
+
+    alert("✅ Alerta criado com sucesso!");
+
+    await carregarAlertas();
   }
+
+  window.addEventListener("load", carregarAlertas);
 </script>
 
 </body>
