@@ -290,20 +290,43 @@ def should_alert(monitor, best, old):
 
 
 def telegram_message(monitor, deal, reasons):
-    text = (
-        "✈️ PASSAGEM EM PROMOÇÃO\n\n"
-        f"{deal['origin']} → {deal['destination']}\n\n"
-        f"🛫 Ida: {deal['departure']}\n"
-        f"🛬 Volta: {deal['return']}\n"
-        f"💰 {format_price(deal['price'])}\n"
+    departure = deal["departure"]
+    return_date = deal["return"]
+    origin = deal["origin"]
+    destination = deal["destination"]
+    price = format_price(deal["price"])
+    airline = deal.get("airline") or "Não informada"
+
+    try:
+        departure_dt = datetime.strptime(departure, "%Y-%m-%d")
+        return_dt = datetime.strptime(return_date, "%Y-%m-%d")
+        trip_days = (return_dt - departure_dt).days
+    except Exception:
+        trip_days = None
+
+    google_flights_url = (
+        "https://www.google.com/travel/flights"
+        f"?q=Flights%20from%20{origin}%20to%20{destination}"
+        f"%20on%20{departure}%20return%20{return_date}"
     )
 
-    if deal.get("airline"):
-        text += f"✈️ Companhia: {deal['airline']}\n"
+    text = (
+        "✈️ PASSAGEM EM PROMOÇÃO\n\n"
+        f"📍 {origin} → {destination}\n"
+        f"🛫 Ida: {departure}\n"
+        f"🛬 Volta: {return_date}\n"
+    )
+
+    if trip_days is not None:
+        text += f"🗓️ Viagem: {trip_days} dias\n"
 
     text += (
-        "\n🔥 " + ", ".join(reasons)
-        + "\n\nPesquise estas datas no Google Flights."
+        f"💰 Preço: {price}\n"
+        f"🏢 Companhia: {airline}\n\n"
+        "🔥 Motivo do alerta:\n"
+        + " • " + "\n • ".join(reasons)
+        + "\n\n"
+        f"🔎 Ver no Google Flights:\n{google_flights_url}"
     )
 
     return text
