@@ -1,196 +1,481 @@
-#!/usr/bin/env python3
-import os, json, random, urllib.parse, urllib.request, urllib.error
-from datetime import datetime, timedelta, timezone
+import os
+import json
+import urllib.parse
+import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-CONFIG = json.loads((ROOT/"config.json").read_text(encoding="utf-8"))
-STATE_PATH = ROOT/"data/state.json"
-LATEST_PATH = ROOT/"data/latest.json"
-STATE = json.loads(STATE_PATH.read_text(encoding="utf-8")) if STATE_PATH.exists() else {}
+CONFIG_PATH = ROOT / "config.json"
+STATE_PATH = ROOT / "data/state.json"
+LATEST_PATH = ROOT / "data/latest.json"
+DOCS_LATEST_PATH = ROOT / "docs/latest.json"
 
-AMADEUS_ID = os.environ.get("AMADEUS_CLIENT_ID", "")
-AMADEUS_SECRET = os.environ.get("AMADEUS_CLIENT_SECRET", "")
-AMADEUS_ENV = os.environ.get("AMADEUS_ENV", "production")
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-ALERT_EMAIL_TO = os.environ.get("ALERT_EMAIL_TO", "")
-ALERT_EMAIL_FROM = os.environ.get("ALERT_EMAIL_FROM", "")
+SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
+
 WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN", "")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 WHATSAPP_TO = os.environ.get("WHATSAPP_TO", "")
 
+CONFIG = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+
+if STATE_PATH.exists():
+    STATE = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+else:
+    STATE = {}
+
+
 def request_json(url, method="GET", headers=None, data=None):
     body = None
+
     if data is not None:
-        if isinstance(data, (dict, list)):
-            body = json.dumps(data).encode()
-            headers = {**(headers or {}), "Content-Type":"application/json"}
-        else:
-            body = data
-    req = urllib.request.Request(url, data=body, method=method, headers=headers or {})
-    with urllib.request.urlopen(req, timeout=40) as r:
-        return json.loads(r.read().decode())
+        body = json.dumps(data).encode("utf-8")
+        headers = {
+            **(headers or {}),
+            "Content-Type": "application/json"
+        }
 
-def amadeus_token():
-    if not AMADEUS_ID or not AMADEUS_SECRET:
-        raise RuntimeError("Configure AMADEUS_CLIENT_ID e AMADEUS_CLIENT_SECRET.")
-    root = "https://api.amadeus.com" if AMADEUS_ENV == "production" else "https://test.api.amadeus.com"
-    form = urllib.parse.urlencode({
-        "grant_type":"client_credentials",
-        "client_id":AMADEUS_ID,
-        "client_secret":AMADEUS_SECRET
-    }).encode()
-    data = request_json(root+"/v1/security/oauth2/token", "POST",
-                        {"Content-Type":"application/x-www-form-urlencoded"}, form)
-    return root, data["access_token"]
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method=method,
+        headers=headers or {}
+    )
 
-def daterange(start, end, step):
-    d = datetime.strptime(start, "%Y-%m-%d").date()
-    e = datetime.strptime(end, "%Y-%m-%d").date()
-    while d <= e:
-        yield d
-        d += timedelta(days=step)
+    with urllib.request.urlopen(req, timeout=60) as response:
+        return json.loads(response.read().decode("utf-8"))
 
-def build_combos(m):
-    combos = []
-    step = max(1, int(CONFIG.get("date_step_days", 2)))
-    stays = list(range(int(m.get("stay_min_days", 7)), int(m.get("stay_max_days", 7))+1))
-    for o in m["origins"]:
-        for d in m["destinations"]:
-            for dep in daterange(m["date_start"], m["date_end"], step):
-                for stay in stays:
-                    combos.append((o,d,dep,stay))
-    random.shuffle(combos)
-    return combos
 
-def search_offer(api_root, token, m, combo):
-    o,d,dep,stay = combo
-    ret = dep + timedelta(days=stay)
+def travel_class_code(value):
+    mapping = {
+        "ECONOMY": "1",
+        "PREMIUM_ECONOMY": "2",
+        "BUSINESS": "3",
+        "FIRST": "4"
+    }
+
+    return mapping.get(
+        str(value or "ECONOMY").upper(),
+        "1"
+    )
+
+
+def search_monitor(monitor):
+    origins = ",".join(monitor["origins"])
+
     params = {
-        "originLocationCode":o,
-        "destinationLocationCode":d,
-        "departureDate":dep.isoformat(),
-        "returnDate":ret.isoformat(),
-        "adults":str(m.get("adults",1)),
-        "currencyCode":CONFIG.get("currency","BRL"),
-        "max":"10"
-    }
-    if m.get("non_stop"): params["nonStop"]="true"
-    if m.get("travel_class"): params["travelClass"]=m["travel_class"]
-    url = api_root+"/v2/shopping/flight-offers?"+urllib.parse.urlencode(params)
-    try:
-        data = request_json(url, headers={"Authorization":"Bearer "+token})
-    except urllib.error.HTTPError as e:
-        print("API", e.code, o, d, dep)
-        return None
-    offers = data.get("data", [])
-    if not offers: return None
-    best = min(offers, key=lambda x: float(x.get("price",{}).get("grandTotal","999999999")))
-    return {
-        "monitor_id":m["id"], "monitor_name":m["name"],
-        "origin":o, "destination":d,
-        "departure":dep.isoformat(), "return":ret.isoformat(),
-        "price":float(best["price"]["grandTotal"]),
-        "currency":best["price"].get("currency", CONFIG.get("currency","BRL"))
+        "engine": "google_flights_deals",
+        "api_key": SERPAPI_KEY,
+        "departure_id": origins,
+        "currency": CONFIG.get("currency", "BRL"),
+        "gl": "br",
+        "hl": "pt-br",
+        "type": "1",
+        "travel_class": travel_class_code(
+            monitor.get("travel_class")
+        ),
+        "adults": str(monitor.get("adults", 1)),
+        "outbound_date":
+            f'{monitor["date_start"]},{monitor["date_end"]}',
+        "trip_length":
+            f'{monitor.get("stay_min_days", 4)},'
+            f'{monitor.get("stay_max_days", 8)}'
     }
 
-def fmt_price(d):
-    return f'{d["currency"]} {d["price"]:,.2f}'.replace(",", "X").replace(".", ",").replace("X",".")
+    if monitor.get("non_stop"):
+        params["stops"] = "1"
 
-def alert_reasons(m, best, old):
+    url = (
+        "https://serpapi.com/search.json?"
+        + urllib.parse.urlencode(params)
+    )
+
+    print(
+        f'Buscando {monitor["name"]}: '
+        f'{origins} → {", ".join(monitor["destinations"])}'
+    )
+
+    data = request_json(url)
+
+    if data.get("error"):
+        raise RuntimeError(
+            f'SerpApi: {data["error"]}'
+        )
+
+    wanted_destinations = {
+        x.upper()
+        for x in monitor["destinations"]
+    }
+
+    results = []
+
+    for deal in data.get("deals", []):
+        airport = str(
+            deal.get("arrival_airport_code", "")
+        ).upper()
+
+        if airport not in wanted_destinations:
+            continue
+
+        price = deal.get("price")
+
+        if price is None:
+            continue
+
+        results.append({
+            "monitor_id": monitor["id"],
+            "monitor_name": monitor["name"],
+            "origin": deal.get(
+                "departure_airport_code",
+                origins
+            ),
+            "destination": airport,
+            "destination_name": deal.get(
+                "name",
+                airport
+            ),
+            "country": deal.get("country", ""),
+            "departure": deal.get(
+                "start_date"
+            ),
+            "return": deal.get(
+                "end_date"
+            ),
+            "price": float(price),
+            "average_price": deal.get(
+                "average_price"
+            ),
+            "discount_percentage":
+                deal.get("discount_percentage"),
+            "airline": deal.get(
+                "airline",
+                ""
+            ),
+            "stops": deal.get("stops"),
+            "currency": CONFIG.get(
+                "currency",
+                "BRL"
+            ),
+            "flight_link": deal.get(
+                "flight_link",
+                ""
+            )
+        })
+
+    return results
+
+
+def format_price(value):
+    formatted = (
+        f"{float(value):,.2f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+
+    return f"R$ {formatted}"
+
+
+def should_alert(monitor, best, old):
     reasons = []
-    target = float(m.get("target_price",0) or 0)
-    prev = old.get("last_price")
-    low = old.get("lowest_price")
+
+    target = float(
+        monitor.get("target_price", 0) or 0
+    )
+
+    previous = old.get("last_price")
+    lowest = old.get("lowest_price")
+    last_alert = old.get("last_alert_price")
+
     if target and best["price"] <= target:
-        # Don't spam same target hit unless materially improved since last alert
-        last_alert = old.get("last_alert_price")
-        if not last_alert or best["price"] < float(last_alert) * 0.98:
-            reasons.append(f"abaixo do teto de R$ {target:,.0f}".replace(",","."))
-    if prev:
-        drop = (float(prev)-best["price"]) / float(prev) * 100
-        if drop >= float(m.get("drop_percent",12)):
-            reasons.append(f"queda de {drop:.0f}%")
-    if low and best["price"] < float(low):
-        reasons.append("novo menor preço histórico")
-    return reasons
+        if (
+            last_alert is None
+            or best["price"]
+            < float(last_alert) * 0.98
+        ):
+            reasons.append(
+                "abaixo do seu preço-alvo"
+            )
 
-def text_for(m, best, reasons):
-    return (f'✈ {m["name"]}\n'
-            f'{best["origin"]} → {best["destination"]}\n'
-            f'Ida: {best["departure"]} | Volta: {best["return"]}\n'
-            f'Preço: {fmt_price(best)}\n'
-            f'Motivo: {", ".join(reasons)}')
+    if previous:
+        drop = (
+            (float(previous) - best["price"])
+            / float(previous)
+            * 100
+        )
 
-def send_telegram(text):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return
-    url=f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    request_json(url,"POST",data={"chat_id":TELEGRAM_CHAT_ID,"text":text})
+        if drop >= float(
+            monitor.get("drop_percent", 12)
+        ):
+            reasons.append(
+                f"queda de {drop:.0f}%"
+            )
 
-def send_email(subject, text):
-    if not RESEND_API_KEY or not ALERT_EMAIL_TO or not ALERT_EMAIL_FROM: return
-    request_json("https://api.resend.com/emails","POST",
-      {"Authorization":"Bearer "+RESEND_API_KEY},
-      {"from":ALERT_EMAIL_FROM,"to":[ALERT_EMAIL_TO],"subject":subject,"text":text})
+    if (
+        lowest is not None
+        and best["price"] < float(lowest)
+    ):
+        reasons.append(
+            "novo menor preço histórico"
+        )
+
+    discount = best.get(
+        "discount_percentage"
+    )
+
+    if (
+        discount is not None
+        and float(discount) >= 20
+    ):
+        reasons.append(
+            f"{discount}% abaixo do preço médio"
+        )
+
+    return list(dict.fromkeys(reasons))
+
+
+def whatsapp_message(monitor, deal, reasons):
+    text = (
+        f"✈️ PROMOÇÃO ENCONTRADA\n\n"
+        f"{deal['origin']} → "
+        f"{deal['destination']}\n"
+        f"Destino: "
+        f"{deal.get('destination_name', '')}\n\n"
+        f"🛫 Ida: {deal['departure']}\n"
+        f"🛬 Volta: {deal['return']}\n"
+        f"💰 {format_price(deal['price'])}\n"
+    )
+
+    if deal.get("airline"):
+        text += (
+            f"✈ Companhia: "
+            f"{deal['airline']}\n"
+        )
+
+    if deal.get(
+        "discount_percentage"
+    ) is not None:
+        text += (
+            f"🔥 Desconto indicado: "
+            f"{deal['discount_percentage']}%\n"
+        )
+
+    text += (
+        "\nMotivo do alerta: "
+        + ", ".join(reasons)
+    )
+
+    if deal.get("flight_link"):
+        text += (
+            "\n\n🔎 Ver no Google Flights:\n"
+            + deal["flight_link"]
+        )
+
+    return text
+
 
 def send_whatsapp(text):
-    if not WHATSAPP_TOKEN or not WHATSAPP_PHONE_NUMBER_ID or not WHATSAPP_TO: return
-    url=f"https://graph.facebook.com/v23.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
-    request_json(url,"POST",{"Authorization":"Bearer "+WHATSAPP_TOKEN},
-      {"messaging_product":"whatsapp","to":WHATSAPP_TO,"type":"text","text":{"body":text}})
+    if not (
+        WHATSAPP_TOKEN
+        and WHATSAPP_PHONE_NUMBER_ID
+        and WHATSAPP_TO
+    ):
+        print(
+            "WhatsApp ainda não configurado. "
+            "Alerta apenas registrado."
+        )
+        return False
+
+    url = (
+        "https://graph.facebook.com/v23.0/"
+        f"{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    )
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": WHATSAPP_TO,
+        "type": "text",
+        "text": {
+            "body": text
+        }
+    }
+
+    request_json(
+        url,
+        method="POST",
+        headers={
+            "Authorization":
+                "Bearer " + WHATSAPP_TOKEN
+        },
+        data=payload
+    )
+
+    return True
+
 
 def main():
-    api_root, token = amadeus_token()
-    budget = int(CONFIG.get("max_queries_per_run",80))
+    if not SERPAPI_KEY:
+        raise RuntimeError(
+            "SERPAPI_KEY não configurada."
+        )
+
     all_deals = []
-    alerts = 0
+    alerts_sent = 0
 
-    for m in CONFIG["monitors"]:
-        if budget <= 0: break
-        best = None
-        for combo in build_combos(m)[:budget]:
-            offer = search_offer(api_root, token, m, combo)
-            budget -= 1
-            if offer:
-                all_deals.append(offer)
-                if best is None or offer["price"] < best["price"]:
-                    best = offer
-            if budget <= 0: break
-        if not best: continue
+    for monitor in CONFIG.get(
+        "monitors",
+        []
+    ):
+        try:
+            deals = search_monitor(
+                monitor
+            )
 
-        old = STATE.get(m["id"], {})
-        reasons = alert_reasons(m, best, old)
-        lowest = min(float(old.get("lowest_price", best["price"])), best["price"])
-        STATE[m["id"]] = {
-            "last_price":best["price"],
-            "lowest_price":lowest,
-            "last_route":f'{best["origin"]}-{best["destination"]}',
-            "last_departure":best["departure"],
-            "updated_at":datetime.now(timezone.utc).isoformat()
-        }
-        if reasons:
-            STATE[m["id"]]["last_alert_price"] = best["price"]
-            txt = text_for(m,best,reasons)
-            print(txt)
-            for fn in (send_telegram, send_whatsapp):
-                try: fn(txt)
-                except Exception as e: print("Falha em alerta:", e)
-            try: send_email(f'Radar de Voos: {m["name"]}', txt)
-            except Exception as e: print("Falha no e-mail:", e)
-            alerts += 1
+            all_deals.extend(deals)
 
-    all_deals.sort(key=lambda x:x["price"])
+            if not deals:
+                print(
+                    f'Nenhuma oferta compatível '
+                    f'em {monitor["name"]}.'
+                )
+                continue
+
+            best = min(
+                deals,
+                key=lambda x: x["price"]
+            )
+
+            old = STATE.get(
+                monitor["id"],
+                {}
+            )
+
+            reasons = should_alert(
+                monitor,
+                best,
+                old
+            )
+
+            previous_low = old.get(
+                "lowest_price"
+            )
+
+            if previous_low is None:
+                lowest = best["price"]
+            else:
+                lowest = min(
+                    float(previous_low),
+                    best["price"]
+                )
+
+            new_state = {
+                "last_price":
+                    best["price"],
+                "lowest_price":
+                    lowest,
+                "last_route":
+                    (
+                        f'{best["origin"]}-'
+                        f'{best["destination"]}'
+                    ),
+                "last_departure":
+                    best["departure"],
+                "last_return":
+                    best["return"],
+                "updated_at":
+                    datetime.now(
+                        timezone.utc
+                    ).isoformat()
+            }
+
+            if reasons:
+                message = whatsapp_message(
+                    monitor,
+                    best,
+                    reasons
+                )
+
+                sent = send_whatsapp(
+                    message
+                )
+
+                print(message)
+
+                new_state[
+                    "last_alert_price"
+                ] = best["price"]
+
+                if sent:
+                    alerts_sent += 1
+
+            elif old.get(
+                "last_alert_price"
+            ) is not None:
+                new_state[
+                    "last_alert_price"
+                ] = old[
+                    "last_alert_price"
+                ]
+
+            STATE[
+                monitor["id"]
+            ] = new_state
+
+        except Exception as error:
+            print(
+                f'Erro em '
+                f'{monitor.get("name")}: '
+                f'{error}'
+            )
+
+    all_deals.sort(
+        key=lambda x: x["price"]
+    )
+
     latest = {
-        "updated_at":datetime.now(timezone.utc).isoformat(),
-        "deals":all_deals[:50],
-        "alerts_sent":alerts
+        "updated_at":
+            datetime.now(
+                timezone.utc
+            ).isoformat(),
+        "deals":
+            all_deals[:50],
+        "alerts_sent":
+            alerts_sent
     }
-    STATE_PATH.write_text(json.dumps(STATE,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
-    LATEST_PATH.write_text(json.dumps(latest,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
-    (ROOT/"docs/latest.json").write_text(json.dumps(latest,indent=2,ensure_ascii=False)+"\n",encoding="utf-8")
-    print(f"Concluído. {len(all_deals)} ofertas úteis; {alerts} alerta(s).")
 
-if __name__=="__main__":
+    STATE_PATH.write_text(
+        json.dumps(
+            STATE,
+            indent=2,
+            ensure_ascii=False
+        ) + "\n",
+        encoding="utf-8"
+    )
+
+    LATEST_PATH.write_text(
+        json.dumps(
+            latest,
+            indent=2,
+            ensure_ascii=False
+        ) + "\n",
+        encoding="utf-8"
+    )
+
+    DOCS_LATEST_PATH.write_text(
+        json.dumps(
+            latest,
+            indent=2,
+            ensure_ascii=False
+        ) + "\n",
+        encoding="utf-8"
+    )
+
+    print(
+        f"Concluído: "
+        f"{len(all_deals)} ofertas "
+        f"e {alerts_sent} alerta(s)."
+    )
+
+
+if __name__ == "__main__":
     main()
