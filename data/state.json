@@ -1,14 +1,1 @@
-{
-  "_rotation": {
-    "supabase_1": 2
-  },
-  "supabase_1": {
-    "last_price": 1698.0,
-    "lowest_price": 1698.0,
-    "last_route": "CWB-MVD",
-    "last_departure": "2026-11-01",
-    "last_return": "2026-11-05",
-    "updated_at": "2026-09-08T18:09:16.166969+00:00",
-    "last_alert_price": 1698.0
-  }
-}
+{}
