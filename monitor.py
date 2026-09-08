@@ -15,9 +15,8 @@ SERPAPI_KEY = os.environ.get("SERPAPI_KEY", "")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
-WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN", "")
-WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
-WHATSAPP_TO = os.environ.get("WHATSAPP_TO", "")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 CONFIG = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
 
@@ -290,7 +289,7 @@ def should_alert(monitor, best, old):
     return list(dict.fromkeys(reasons))
 
 
-def whatsapp_message(monitor, deal, reasons):
+def telegram_message(monitor, deal, reasons):
     text = (
         "✈️ PASSAGEM EM PROMOÇÃO\n\n"
         f"{deal['origin']} → {deal['destination']}\n\n"
@@ -310,35 +309,29 @@ def whatsapp_message(monitor, deal, reasons):
     return text
 
 
-def send_whatsapp(text):
-    if not (
-        WHATSAPP_TOKEN
-        and WHATSAPP_PHONE_NUMBER_ID
-        and WHATSAPP_TO
-    ):
-        print("WhatsApp ainda não configurado.")
+def send_telegram(text):
+    if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
+        print("Telegram ainda não configurado.")
         return False
 
-    url = (
-        "https://graph.facebook.com/v23.0/"
-        f"{WHATSAPP_PHONE_NUMBER_ID}/messages"
-    )
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
     payload = {
-        "messaging_product": "whatsapp",
-        "to": WHATSAPP_TO,
-        "type": "text",
-        "text": {"body": text},
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text
     }
 
-    request_json(
-        url,
-        method="POST",
-        headers={"Authorization": "Bearer " + WHATSAPP_TOKEN},
-        data=payload,
-    )
-
-    return True
+    try:
+        request_json(
+            url,
+            method="POST",
+            data=payload
+        )
+        print("Telegram enviado com sucesso.")
+        return True
+    except Exception as error:
+        print("Erro ao enviar Telegram:", error)
+        return False
 
 
 def main():
@@ -403,10 +396,10 @@ def main():
             new_state["last_alert_price"] = old["last_alert_price"]
 
         if reasons:
-            message = whatsapp_message(monitor, best, reasons)
+            message = telegram_message(monitor, best, reasons)
             print("\n" + message + "\n")
 
-            if send_whatsapp(message):
+            if send_telegram(message):
                 alerts_sent += 1
 
             new_state["last_alert_price"] = best["price"]
