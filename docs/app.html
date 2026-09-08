@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Radar de Voos</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f5f7fb;
+      color: #172033;
+    }
+
+    header {
+      background: #ffffff;
+      padding: 20px 7%;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-size: 24px;
+      font-weight: 800;
+      color: #1264e8;
+    }
+
+    .logo span {
+      color: #172033;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 55px auto;
+      padding: 0 20px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 35px;
+    }
+
+    .hero h1 {
+      font-size: 38px;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      color: #667085;
+      font-size: 17px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    }
+
+    .tipo {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+
+    .tipo label {
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1.2fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field {
+      border: 1px solid #d8dde6;
+      border-radius: 12px;
+      padding: 11px 14px;
+      background: #fff;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: #667085;
+      margin-bottom: 5px;
+    }
+
+    .field input {
+      width: 100%;
+      border: 0;
+      outline: 0;
+      font-size: 16px;
+      font-weight: 600;
+      background: transparent;
+    }
+
+    .options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .button {
+      margin-top: 22px;
+      width: 100%;
+      border: none;
+      border-radius: 12px;
+      padding: 17px;
+      background: #1264e8;
+      color: white;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .button:hover {
+      background: #0c54c7;
+    }
+
+    .info {
+      margin-top: 18px;
+      text-align: center;
+      color: #667085;
+      font-size: 14px;
+    }
+
+    .alerts {
+      margin-top: 35px;
+    }
+
+    .alerts h2 {
+      margin-bottom: 15px;
+    }
+
+    .empty {
+      background: white;
+      padding: 30px;
+      border-radius: 14px;
+      text-align: center;
+      color: #667085;
+      border: 1px solid #e5e7eb;
+    }
+
+    @media (max-width: 850px) {
+      .grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 550px) {
+      .grid,
+      .options {
+        grid-template-columns: 1fr;
+      }
+
+      .hero h1 {
+        font-size: 29px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">✈ Radar <span>de Voos</span></div>
+</header>
+
+<div class="container">
+
+  <div class="hero">
+    <h1>Encontre a passagem certa pelo preço certo</h1>
+    <p>
+      Escolha sua viagem e ative o radar.
+      Nós monitoramos os preços para você.
+    </p>
+  </div>
+
+  <div class="card">
+
+    <div class="tipo">
+      <label>
+        <input type="radio" name="tipo" checked>
+        Ida e volta
+      </label>
+
+      <label>
+        <input type="radio" name="tipo">
+        Somente ida
+      </label>
+    </div>
+
+    <div class="grid">
+
+      <div class="field">
+        <label>Origem</label>
+        <input
+          id="origin"
+          type="text"
+          placeholder="Ex.: Curitiba (CWB)"
+        >
+      </div>
+
+      <div class="field">
+        <label>Destino</label>
+        <input
+          id="destination"
+          type="text"
+          placeholder="Ex.: Montevidéu (MVD)"
+        >
+      </div>
+
+      <div class="field">
+        <label>Ida</label>
+        <input id="departure" type="date">
+      </div>
+
+      <div class="field">
+        <label>Volta</label>
+        <input id="returnDate" type="date">
+      </div>
+
+    </div>
+
+    <div class="options">
+
+      <div class="field">
+        <label>Preço máximo desejado</label>
+        <input
+          id="targetPrice"
+          type="number"
+          placeholder="R$ 1.500"
+        >
+      </div>
+
+      <div class="field">
+        <label>Flexibilidade das datas</label>
+        <input
+          id="flexDays"
+          type="number"
+          value="2"
+          min="0"
+          max="10"
+        >
+      </div>
+
+    </div>
+
+    <button class="button" onclick="ativarRadar()">
+      🔔 Ativar alerta de preço
+    </button>
+
+    <div class="info">
+      Você receberá um alerta no Telegram quando o Radar encontrar
+      uma oportunidade de acordo com seus critérios.
+    </div>
+
+  </div>
+
+  <div class="alerts">
+    <h2>Meus alertas</h2>
+
+    <div class="empty">
+      Você ainda não possui nenhum alerta cadastrado.
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function ativarRadar() {
+
+    const origin =
+      document.getElementById("origin").value;
+
+    const destination =
+      document.getElementById("destination").value;
+
+    const departure =
+      document.getElementById("departure").value;
+
+    const returnDate =
+      document.getElementById("returnDate").value;
+
+    if (!origin || !destination || !departure) {
+      alert(
+        "Preencha pelo menos origem, destino e data de ida."
+      );
+      return;
+    }
+
+    alert(
+      "Radar configurado! Próximo passo: conectar esta tela ao Supabase."
+    );
+  }
+</script>
+
+</body>
+</html>
