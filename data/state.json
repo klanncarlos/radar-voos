@@ -1,44 +1,44 @@
 {
   "_rotation": {
-    "supabase_1": 6,
-    "supabase_2": 1,
+    "supabase_1": 8,
+    "supabase_2": 0,
     "supabase_3": 0,
     "supabase_4": 0
   },
   "supabase_1": {
-    "last_price": 3019.0,
+    "last_price": 2766.0,
     "lowest_price": 1476.0,
     "last_route": "CWB-MVD",
-    "last_departure": "2026-11-08",
-    "last_return": "2026-11-13",
-    "updated_at": "2026-11-08T02:10:52.614183+00:00",
+    "last_departure": "2026-11-15",
+    "last_return": "2026-11-20",
+    "updated_at": "2026-11-08T16:57:45.722497+00:00",
     "last_alert_price": 2234.0
   },
   "supabase_2": {
-    "last_price": 3261.0,
+    "last_price": 2439.0,
     "lowest_price": 2066.0,
     "last_route": "CWB-BRC",
     "last_departure": "2027-06-07",
-    "last_return": "2027-06-11",
-    "updated_at": "2026-11-08T02:11:09.576048+00:00",
-    "last_alert_price": 2368.0
+    "last_return": "2027-06-13",
+    "updated_at": "2026-11-08T16:57:50.614105+00:00",
+    "last_alert_price": 2439.0
   },
   "supabase_3": {
-    "last_price": 6399.0,
+    "last_price": 6452.0,
     "lowest_price": 5463.0,
     "last_route": "CWB-MAD",
     "last_departure": "2027-05-02",
     "last_return": "2027-05-31",
-    "updated_at": "2026-11-08T02:11:31.987975+00:00",
+    "updated_at": "2026-11-08T16:58:05.592197+00:00",
     "last_alert_price": 5463.0
   },
   "supabase_4": {
-    "last_price": 6399.0,
+    "last_price": 6452.0,
     "lowest_price": 5463.0,
     "last_route": "CWB-MAD",
     "last_departure": "2027-05-02",
     "last_return": "2027-05-31",
-    "updated_at": "2026-11-08T02:11:32.036835+00:00",
+    "updated_at": "2026-11-08T16:58:05.687335+00:00",
     "last_alert_price": 5463.0
   }
 }
